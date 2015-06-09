@@ -1,0 +1,49 @@
+[
+   {
+      "key": "footer-global",
+      "referenced_by": [
+         "home"
+      ],
+      "hbs_path": "test/fixtures/src/components/footer-global/footer-global.hbs",
+      "type": "component",
+      "references": [],
+      "extends": [],
+      "extended_by": []
+   },
+   {
+      "key": "header-global",
+      "referenced_by": [
+         "home"
+      ],
+      "hbs_path": "test/fixtures/src/components/header-global/header-global.hbs",
+      "type": "component",
+      "references": [],
+      "extends": [],
+      "extended_by": []
+   },
+   {
+      "key": "global",
+      "referenced_by": [],
+      "hbs_path": "test/fixtures/src/layouts/global.hbs",
+      "type": "layout",
+      "references": [],
+      "extends": [],
+      "extended_by": [
+         "home"
+      ]
+   },
+   {
+      "key": "home",
+      "referenced_by": [],
+      "hbs_path": "test/fixtures/src/pages/home/home.hbs",
+      "type": "page",
+      "references": [
+         "header-global",
+         "footer-global"
+      ],
+      "extends": [
+         "global"
+      ],
+      "extended_by": []
+   }
+]

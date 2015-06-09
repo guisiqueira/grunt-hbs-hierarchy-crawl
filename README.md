@@ -1,4 +1,5 @@
 # grunt-hbs-hierarchy-crawl
+<<<<<<< HEAD
 
 > Crawl directories creating HBS list of files and dependencies
 

@@ -1,0 +1,8 @@
+{
+  "homeText": "texto home",
+  "footerText": "Footer",
+  "headerText": "Header Global",
+  "head": {
+    "title": "Rio 2016"
+  }
+}

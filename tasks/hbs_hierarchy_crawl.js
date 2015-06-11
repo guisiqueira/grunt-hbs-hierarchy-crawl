@@ -7,7 +7,10 @@
  */
 
 'use strict';
+var path = require("path");
 var _ = require("underscore");
+var Git = require("nodegit");
+var async = require("async");
 
 module.exports = function (grunt) {
 
@@ -15,19 +18,69 @@ module.exports = function (grunt) {
   // creation: http://gruntjs.com/creating-tasks
 
   grunt.registerMultiTask('hbs_hierarchy_crawl', 'Crawl directories creating HBS list of files and dependencies', function () {
+    var task = this;
+    var done = task.async();
 
     var elements = [];
+    var git_info = {
+      branch: "",
+    };
 
     // Merge task-specific and/or target-specific options with these defaults.
-    var options = this.options({
+    var options = task.options({
       punctuation: '.',
       separator: ', ',
       element_type_folders:{
         "/components/" : "component",
         "/layouts/" : "layout",
         "/pages/" : "page"
-      }
+      },
+      git_path: path.resolve(".")
     });
+
+    var applyGitReleaseTags = function(_callback){
+
+      grunt.log.writeln("Applying Git Release Tags to Elements");
+      Git.Repository.open(options.git_path)
+        .then(function(repo){
+          console.log("GOT REPO");
+          //List Git Tags
+          Git.Tag.list(repo).then(function(tags){
+
+            //For each tag, check diff between previous tag and mark elements
+            console.log("Tags:" + tags);
+            //Function array that will be called in series
+            var diff_functions = [];
+
+            _.each(tags, function(tag, i, list){
+                diff_functions.push(function(_callback){
+
+                  var last_tag = null;
+
+                  if(i > 0){
+                    last_tag = list[i-1];
+                  }
+
+                  Git.Diff.treeToTree(repo, last_tag, tag)
+                    .then(function(diff){
+                        console.log(diff.numDeltas());
+                        _callback(diff);
+                    });
+                  grunt.log.writeln("Checking diff between: '" + last_tag + "' and '" + tag + "'");
+                });
+            });
+
+            //For each diff, execute callback
+            async.series(diff_functions, function(err, result){
+              console.log(result);
+
+              return _callback(null, null);
+            });
+
+          });
+        });
+
+    };
 
     var processElement = function(filepath){
       //Try to find existing element
@@ -119,41 +172,53 @@ module.exports = function (grunt) {
       return el;
     };
 
-    // Iterate over all specified file groups.
-    this.files.forEach(function (file) {
-      // Concat specified files.
-      var src = file.src.filter(function (filepath) {
-        // Warn on and remove invalid source files (if nonull was set).
-        if (!grunt.file.exists(filepath)) {
-          grunt.log.warn('Source file "' + filepath + '" not found.');
-          return false;
-        } else {
-          if(filepath.indexOf('.hbs') > -1){
-            // Print a success message.
-            grunt.log.writeln('Found "' + filepath + '".');
-
-            elements.push(processElement(filepath));
-
-            return true;
-          }
-          else{
+    var processFiles = function(_callback){
+      // Iterate over all specified file groups.
+      task.files.forEach(function (file) {
+        // Concat specified files.
+        var src = file.src.filter(function (filepath) {
+          // Warn on and remove invalid source files (if nonull was set).
+          if (!grunt.file.exists(filepath)) {
+            grunt.log.warn('Source file "' + filepath + '" not found.');
             return false;
+          } else {
+            if(filepath.indexOf('.hbs') > -1){
+              // Print a success message.
+              grunt.log.writeln('Found "' + filepath + '".');
+              elements.push(processElement(filepath));
+
+              return true;
+            }
+            else{
+              return false;
+            }
           }
-        }
-      }).map(function (filepath) {
-        // Read file source.
-        return grunt.file.read(filepath);
-      }).join(grunt.util.normalizelf(options.separator));
+        }).map(function (filepath) {
+          // Read file source.
+          return grunt.file.read(filepath);
+        }).join(grunt.util.normalizelf(options.separator));
 
-      // Handle options.
-      src += options.punctuation;
+        // Handle options.
+        src += options.punctuation;
 
-      // Write the destination file.
-      grunt.file.write(file.dest, JSON.stringify(elements,"",3));
+        // Write the destination file.
+        grunt.file.write(file.dest, JSON.stringify(elements,"",3));
 
-      // Print a success message.
-      grunt.log.writeln('File "' + file.dest + '" created.');
+        // Print a success message.
+        grunt.log.writeln('File "' + file.dest + '" created.');
+
+        _callback(null,null);
+
+      });
+    };
+
+    async.series([
+      processFiles,
+      applyGitReleaseTags
+    ], function(err, result){
+      console.log("DONE");
+      task.done();
     });
-  });
 
+  });
 };

@@ -18,8 +18,8 @@ module.exports = function (grunt) {
   // creation: http://gruntjs.com/creating-tasks
 
   grunt.registerMultiTask('hbs_hierarchy_crawl', 'Crawl directories creating HBS list of files and dependencies', function () {
-
-    var done = this.async();
+    var task = this;
+    var done = task.async();
 
     var elements = [];
     var git_info = {
@@ -27,7 +27,7 @@ module.exports = function (grunt) {
     };
 
     // Merge task-specific and/or target-specific options with these defaults.
-    var options = this.options({
+    var options = task.options({
       punctuation: '.',
       separator: ', ',
       element_type_folders:{
@@ -38,35 +38,47 @@ module.exports = function (grunt) {
       git_path: path.resolve(".")
     });
 
-    var getMostRecentCommit = function(repository) {
-      console.log("yo");
-      var branch = repository.getBranchCommit("master");
-      return branch;
-    };
+    var applyGitReleaseTags = function(_callback){
 
-    var getCommitMessage = function(commit) {
-      console.log(commit.summary());
-      return commit;
-    };
-
-    var getTags = function(repository){
-      Git.Tag.list(repository).then(function(tags){
-        console.log("------");
-        console.log("TAGS:");
-        _.each(tags, function(t){
-          console.log(t.owner());
-
-        });
-        console.log("------");
-        return tags;
-      });
-    };
-
-
-    var getGitReleaseTags = function(){
-      console.log("yeah");
+      grunt.log.writeln("Applying Git Release Tags to Elements");
       Git.Repository.open(options.git_path)
-      .then(getTags);
+        .then(function(repo){
+          console.log("GOT REPO");
+          //List Git Tags
+          Git.Tag.list(repo).then(function(tags){
+
+            //For each tag, check diff between previous tag and mark elements
+            console.log("Tags:" + tags);
+            //Function array that will be called in series
+            var diff_functions = [];
+
+            _.each(tags, function(tag, i, list){
+                diff_functions.push(function(_callback){
+
+                  var last_tag = null;
+
+                  if(i > 0){
+                    last_tag = list[i-1];
+                  }
+
+                  Git.Diff.treeToTree(repo, last_tag, tag)
+                    .then(function(diff){
+                        console.log(diff.numDeltas());
+                        _callback(diff);
+                    });
+                  grunt.log.writeln("Checking diff between: '" + last_tag + "' and '" + tag + "'");
+                });
+            });
+
+            //For each diff, execute callback
+            async.series(diff_functions, function(err, result){
+              console.log(result);
+
+              return _callback(null, null);
+            });
+
+          });
+        });
 
     };
 
@@ -160,9 +172,9 @@ module.exports = function (grunt) {
       return el;
     };
 
-    var processFiles = function(){
+    var processFiles = function(_callback){
       // Iterate over all specified file groups.
-      this.files.forEach(function (file) {
+      task.files.forEach(function (file) {
         // Concat specified files.
         var src = file.src.filter(function (filepath) {
           // Warn on and remove invalid source files (if nonull was set).
@@ -173,7 +185,6 @@ module.exports = function (grunt) {
             if(filepath.indexOf('.hbs') > -1){
               // Print a success message.
               grunt.log.writeln('Found "' + filepath + '".');
-
               elements.push(processElement(filepath));
 
               return true;
@@ -196,14 +207,18 @@ module.exports = function (grunt) {
         // Print a success message.
         grunt.log.writeln('File "' + file.dest + '" created.');
 
+        _callback(null,null);
+
       });
     };
 
     async.series([
-      getGitReleaseTags,
       processFiles,
-      done
-    ]);
+      applyGitReleaseTags
+    ], function(err, result){
+      console.log("DONE");
+      task.done();
+    });
 
   });
 };

@@ -27,5 +27,9 @@
   },
   "scripts": {
     "test": "grunt test"
+  },
+  "dependencies": {
+    "async": "^1.2.1",
+    "nodegit": "^0.4.1"
   }
 }

@@ -7,7 +7,10 @@
  */
 
 'use strict';
+var path = require("path");
 var _ = require("underscore");
+var Git = require("nodegit");
+var async = require("async");
 
 module.exports = function (grunt) {
 
@@ -16,7 +19,12 @@ module.exports = function (grunt) {
 
   grunt.registerMultiTask('hbs_hierarchy_crawl', 'Crawl directories creating HBS list of files and dependencies', function () {
 
+    var done = this.async();
+
     var elements = [];
+    var git_info = {
+      branch: "",
+    };
 
     // Merge task-specific and/or target-specific options with these defaults.
     var options = this.options({
@@ -26,8 +34,41 @@ module.exports = function (grunt) {
         "/components/" : "component",
         "/layouts/" : "layout",
         "/pages/" : "page"
-      }
+      },
+      git_path: path.resolve(".")
     });
+
+    var getMostRecentCommit = function(repository) {
+      console.log("yo");
+      var branch = repository.getBranchCommit("master");
+      return branch;
+    };
+
+    var getCommitMessage = function(commit) {
+      console.log(commit.summary());
+      return commit;
+    };
+
+    var getTags = function(repository){
+      Git.Tag.list(repository).then(function(tags){
+        console.log("------");
+        console.log("TAGS:");
+        _.each(tags, function(t){
+          console.log(t.owner());
+
+        });
+        console.log("------");
+        return tags;
+      });
+    };
+
+
+    var getGitReleaseTags = function(){
+      console.log("yeah");
+      Git.Repository.open(options.git_path)
+      .then(getTags);
+
+    };
 
     var processElement = function(filepath){
       //Try to find existing element
@@ -119,41 +160,50 @@ module.exports = function (grunt) {
       return el;
     };
 
-    // Iterate over all specified file groups.
-    this.files.forEach(function (file) {
-      // Concat specified files.
-      var src = file.src.filter(function (filepath) {
-        // Warn on and remove invalid source files (if nonull was set).
-        if (!grunt.file.exists(filepath)) {
-          grunt.log.warn('Source file "' + filepath + '" not found.');
-          return false;
-        } else {
-          if(filepath.indexOf('.hbs') > -1){
-            // Print a success message.
-            grunt.log.writeln('Found "' + filepath + '".');
-
-            elements.push(processElement(filepath));
-
-            return true;
-          }
-          else{
+    var processFiles = function(){
+      // Iterate over all specified file groups.
+      this.files.forEach(function (file) {
+        // Concat specified files.
+        var src = file.src.filter(function (filepath) {
+          // Warn on and remove invalid source files (if nonull was set).
+          if (!grunt.file.exists(filepath)) {
+            grunt.log.warn('Source file "' + filepath + '" not found.');
             return false;
+          } else {
+            if(filepath.indexOf('.hbs') > -1){
+              // Print a success message.
+              grunt.log.writeln('Found "' + filepath + '".');
+
+              elements.push(processElement(filepath));
+
+              return true;
+            }
+            else{
+              return false;
+            }
           }
-        }
-      }).map(function (filepath) {
-        // Read file source.
-        return grunt.file.read(filepath);
-      }).join(grunt.util.normalizelf(options.separator));
+        }).map(function (filepath) {
+          // Read file source.
+          return grunt.file.read(filepath);
+        }).join(grunt.util.normalizelf(options.separator));
 
-      // Handle options.
-      src += options.punctuation;
+        // Handle options.
+        src += options.punctuation;
 
-      // Write the destination file.
-      grunt.file.write(file.dest, JSON.stringify(elements,"",3));
+        // Write the destination file.
+        grunt.file.write(file.dest, JSON.stringify(elements,"",3));
 
-      // Print a success message.
-      grunt.log.writeln('File "' + file.dest + '" created.');
-    });
+        // Print a success message.
+        grunt.log.writeln('File "' + file.dest + '" created.');
+
+      });
+    };
+
+    async.series([
+      getGitReleaseTags,
+      processFiles,
+      done
+    ]);
+
   });
-
 };

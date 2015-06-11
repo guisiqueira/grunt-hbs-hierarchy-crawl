@@ -208,7 +208,10 @@ module.exports = function (grunt) {
       }
 
       el.hbs_path = filepath;
-      el.latest_version = fileReleaseTags[filepath];
+      if (_.has(fileReleaseTags, filepath)){
+        el.latest_version = fileReleaseTags[filepath];
+      }
+
 
       //Detect File Type
       var typeKey = _.find(_.allKeys(options.element_type_folders), function(key){

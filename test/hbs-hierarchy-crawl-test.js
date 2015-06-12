@@ -22,7 +22,7 @@ var grunt = require('grunt');
     test.ifError(value)
 */
 
-exports.hbs_hierarchy_crawl = {
+exports.hbshierarchycrawl = {
   setUp: function (done) {
     // setup here if necessary
     done();

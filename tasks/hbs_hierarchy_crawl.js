@@ -14,6 +14,8 @@ var async = require("async");
 
 module.exports = function (grunt) {
 
+  var GitHelpers = require('./lib/githelpers').init(grunt);
+
   // Please see the Grunt documentation for more information regarding task
   // creation: http://gruntjs.com/creating-tasks
 
@@ -24,10 +26,6 @@ module.exports = function (grunt) {
     var elements = [];
     var fileReleaseTags = {};
 
-    var git_info = {
-      branch: "",
-    };
-
     // Merge task-specific and/or target-specific options with these defaults.
     var options = task.options({
       punctuation: '.',
@@ -37,55 +35,10 @@ module.exports = function (grunt) {
         "/layouts/" : "layout",
         "/pages/" : "page"
       },
-      git_path: path.resolve(".")
+      git_path: path.resolve("."),
+      git_develop_branch: "develop",
+      git_cascade_component_version: true
     });
-
-    var versionCompare = function(v1, v2, options) {
-      var lexicographical = options && options.lexicographical,
-        zeroExtend = options && options.zeroExtend,
-        v1parts = v1.split('.'),
-        v2parts = v2.split('.');
-
-      function isValidPart(x) {
-        return (lexicographical ? /^\d+[A-Za-z]*$/ : /^\d+$/).test(x);
-      }
-
-      if (!v1parts.every(isValidPart) || !v2parts.every(isValidPart)) {
-        return NaN;
-      }
-
-      if (zeroExtend) {
-        while (v1parts.length < v2parts.length) { v1parts.push("0"); }
-        while (v2parts.length < v1parts.length) { v2parts.push("0"); }
-      }
-
-      if (!lexicographical) {
-        v1parts = v1parts.map(Number);
-        v2parts = v2parts.map(Number);
-      }
-
-      for (var i = 0; i < v1parts.length; ++i) {
-        if (v2parts.length === i) {
-          return 1;
-        }
-
-        if (v1parts[i] === v2parts[i]) {
-          continue;
-        }
-        else if (v1parts[i] > v2parts[i]) {
-          return 1;
-        }
-        else {
-          return -1;
-        }
-      }
-
-      if (v1parts.length !== v2parts.length) {
-        return -1;
-      }
-
-      return 0;
-    };
 
     var processFilesGitReleaseTags = function(_callback){
 
@@ -96,7 +49,7 @@ module.exports = function (grunt) {
           Git.Tag.list(repo).then(function(tags){
 
             //For each tag, check diff between previous tag and mark elements
-            console.log("Tags:" + tags);
+            grunt.log.writeln("Tags:" + tags);
             //Function array that will be called in series
             var diff_functions = [];
 
@@ -115,40 +68,22 @@ module.exports = function (grunt) {
 
                 async.series([
                   function(cb){
-                    //Get Tag Obj ID
-                    Git.Revparse.single(repo, tag_name).then(function(obj){
-
-                      tag = obj;
-
-                      Git.Tag.lookup(repo, tag).then(function(loaded_tag){
-                        tag = loaded_tag;
-
-                        Git.Commit.lookup(repo, tag.targetId()).then(function(commit){
-                          Git.Tree.lookup(repo, commit.treeId()).then(function(tree){
-                            tag_commit_tree = tree;
-                            cb(null, tree);
-                          });
-                        });
-                      });
+                    //Get Git Tree from tag name so we can diff later
+                    GitHelpers.getTreeFromTagName(repo, tag_name, function(error, tree){
+                      if(!error){
+                        tag_commit_tree = tree;
+                      }
+                      cb(error, tree);
                     });
                   },
+
                   function(cb){
                     if(last_tag_name != null){
-                      Git.Revparse.single(repo, last_tag_name).then(function(obj){
-
-                        last_tag = obj;
-
-                        Git.Tag.lookup(repo, last_tag).then(function(loaded_tag){
-                          last_tag = loaded_tag;
-
-                          Git.Commit.lookup(repo, last_tag.targetId()).then(function(commit){
-                            Git.Tree.lookup(repo, commit.treeId()).then(function(tree){
-                              last_tag_commit_tree = tree;
-                              cb(null, tree);
-                            });
-                          });
-                        });
-
+                      GitHelpers.getTreeFromTagName(repo, last_tag_name, function(error, tree){
+                        if(!error){
+                          last_tag_commit_tree = tree;
+                        }
+                        cb(error, tree);
                       });
                     }
                     else{
@@ -157,29 +92,82 @@ module.exports = function (grunt) {
                       cb(null, null);
                     }
                   },
-                  function(cb){
 
+                  function(cb){
                     Git.Diff.treeToTree(repo, last_tag_commit_tree, tag_commit_tree, null)
                       .then(function(diff){
-
                           var patches = diff.patches();
 
                           _.each(patches, function(patch){
                             var file_path = patch.newFile().path();
 
                             grunt.log.writeln("Tag [" + tag_name + "]: " + file_path);
-
                             fileReleaseTags[file_path] = tag_name;
-
                           });
 
                           cb(null, diff);
                       });
-                    grunt.log.writeln("Checking diff between: '" + last_tag_name + "' and '" + tag_name + "'");
+                      grunt.log.writeln("Checking diff between: '" + last_tag_name + "' and '" + tag_name + "'");
                   }
                 ], function(err, result){
                   _callback(null, result);
                 });
+              });
+
+            });
+
+            //Make diff between most recent tag and the current develop branch
+            diff_functions.push(function(_callback){
+              var last_tag_name = tags[tags.length-1];
+              var last_tag_commit_tree = null;
+
+              var tag_commit_tree = null;
+
+
+              async.series([
+                function(cb){
+                  //Get Git Tree from latest commit of develop branch
+                  GitHelpers.getTreeFromBranchName(repo, options.git_develop_branch, function(error, tree){
+                    if(!error){
+                      tag_commit_tree = tree;
+                    }
+                    cb(error, tree);
+                  });
+                },
+
+                function(cb){
+                  if(last_tag_name != null){
+                    GitHelpers.getTreeFromTagName(repo, last_tag_name, function(error, tree){
+                      if(!error){
+                        last_tag_commit_tree = tree;
+                      }
+                      cb(error, tree);
+                    });
+                  }
+                  else{
+                    last_tag_commit_tree = null;
+                    cb(null, null);
+                  }
+                },
+
+                function(cb){
+                  Git.Diff.treeToTree(repo, last_tag_commit_tree, tag_commit_tree, null)
+                    .then(function(diff){
+                        var patches = diff.patches();
+
+                        _.each(patches, function(patch){
+                          var file_path = patch.newFile().path();
+
+                          grunt.log.writeln("[Develop Branch]: " + file_path);
+                          fileReleaseTags[file_path] = last_tag_name + "+dev";
+                        });
+
+                        cb(null, diff);
+                    });
+                  grunt.log.writeln("Checking diff between: '" + last_tag_name + "' Tag and '" + options.git_develop_branch + "' Branch latest Commit.");
+                }
+              ], function(err, result){
+                _callback(null, result);
               });
 
             });
@@ -209,11 +197,10 @@ module.exports = function (grunt) {
 
       el.hbs_path = filepath;
 
-      if (_.has(fileReleaseTags, filepath)){
+      el.latest_version = "0";
+
+      if ( options.git_cascade_component_version && _.has(fileReleaseTags, filepath)){
         el.latest_version = fileReleaseTags[filepath];
-      }
-      else{
-        el.latest_version = "0";
       }
 
       //Detect File Type
@@ -246,7 +233,7 @@ module.exports = function (grunt) {
 
 
         if(reference){
-          if(versionCompare(el.latest_version, reference.latest_version)){
+          if(GitHelpers.versionCompare(el.latest_version, reference.latest_version)){
             reference.latest_version = el.latest_version;
           }
           reference.referenced_by.push(el.key);
@@ -282,7 +269,7 @@ module.exports = function (grunt) {
         if(extension){
           extension.extended_by.push(el.key);
 
-          if(versionCompare(extension.latest_version, el.latest_version)){
+          if(options.git_cascade_component_version && GitHelpers.versionCompare(extension.latest_version, el.latest_version)){
             el.latest_version = extension.latest_version;
           }
         }

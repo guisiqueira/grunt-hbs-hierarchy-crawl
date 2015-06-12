@@ -19,7 +19,7 @@ module.exports = function (grunt) {
   // Please see the Grunt documentation for more information regarding task
   // creation: http://gruntjs.com/creating-tasks
 
-  grunt.registerMultiTask('hbs_hierarchy_crawl', 'Crawl directories creating HBS list of files and dependencies', function () {
+  grunt.registerMultiTask('hbshierarchycrawl', 'Crawl directories creating HBS list of files and dependencies', function () {
     var task = this;
     var done = task.async();
 

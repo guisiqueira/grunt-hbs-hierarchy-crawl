@@ -17,7 +17,7 @@ exports.init = function (grunt) {
   var exports = {};
 
   exports.versionCompare = function(v1, v2, options) {
-    var lexicographical = options && options.lexicographical,
+    var lexicographical = true,//options && options.lexicographical,
       zeroExtend = options && options.zeroExtend,
       v1parts = v1.split('.'),
       v2parts = v2.split('.');

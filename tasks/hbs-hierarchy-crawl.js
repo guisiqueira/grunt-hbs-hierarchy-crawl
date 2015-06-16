@@ -35,7 +35,7 @@ module.exports = function (grunt) {
         "/layouts/" : "layout",
         "/pages/" : "page"
       },
-      same_name_dependencies: ['.scss', '.js'],
+      same_name_dependencies: ['.hbs', '.scss', '.js'],
       git_path: path.resolve("."),
       git_develop_branch: "develop",
       git_cascade_component_version: true
@@ -160,7 +160,7 @@ module.exports = function (grunt) {
                           var file_path = patch.newFile().path();
 
                           grunt.log.writeln("[Develop Branch]: " + file_path);
-                          fileReleaseTags[file_path] = last_tag_name + "+dev";
+                          fileReleaseTags[file_path] = last_tag_name + "dev";
                         });
 
                         cb(null, diff);
@@ -193,7 +193,6 @@ module.exports = function (grunt) {
       if(!el){
         el = {};
         el.key = key;
-        el.path = filepath;
         el.referenced_by = [];
       }
 
@@ -235,7 +234,7 @@ module.exports = function (grunt) {
 
 
         if(reference){
-          if(GitHelpers.versionCompare(el.latest_version, reference.latest_version)){
+          if(GitHelpers.versionCompare(el.latest_version, reference.latest_version) > 0){
             reference.latest_version = el.latest_version;
           }
           reference.referenced_by.push(el.key);
@@ -271,7 +270,7 @@ module.exports = function (grunt) {
         if(extension){
           extension.extended_by.push(el.key);
 
-          if(options.git_cascade_component_version && GitHelpers.versionCompare(extension.latest_version, el.latest_version)){
+          if(options.git_cascade_component_version && GitHelpers.versionCompare(extension.latest_version, el.latest_version) > 0){
             el.latest_version = extension.latest_version;
           }
         }
@@ -301,8 +300,9 @@ module.exports = function (grunt) {
           if (_.has(fileReleaseTags, dep_path)){
             dep.latest_version = fileReleaseTags[dep_path];
 
-            if(GitHelpers.versionCompare(dep.latest_version, el.latest_version)){
+            if(GitHelpers.versionCompare(dep.latest_version, el.latest_version) > 0){
               el.latest_version = dep.latest_version;
+              console.log(el.latest_version);
             }
           }
 

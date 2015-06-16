@@ -35,6 +35,7 @@ module.exports = function (grunt) {
         "/layouts/" : "layout",
         "/pages/" : "page"
       },
+      same_name_dependencies: ['.scss', '.js'],
       git_path: path.resolve("."),
       git_develop_branch: "develop",
       git_cascade_component_version: true
@@ -192,6 +193,7 @@ module.exports = function (grunt) {
       if(!el){
         el = {};
         el.key = key;
+        el.path = filepath;
         el.referenced_by = [];
       }
 
@@ -199,7 +201,7 @@ module.exports = function (grunt) {
 
       el.latest_version = "0";
 
-      if ( options.git_cascade_component_version && _.has(fileReleaseTags, filepath)){
+      if (_.has(fileReleaseTags, filepath)){
         el.latest_version = fileReleaseTags[filepath];
       }
 
@@ -285,6 +287,29 @@ module.exports = function (grunt) {
 
       });
 
+      //Dependencies
+      //Try to process dependencies
+      el.dependencies = [];
+      _.each(options.same_name_dependencies, function(file_extension){
+        var dep_path = filepath.replace('.hbs', file_extension);
+
+        if(grunt.file.exists(dep_path)){
+          var dep = {};
+          dep.path = dep_path;
+          dep.latest_version = 0;
+
+          if (_.has(fileReleaseTags, dep_path)){
+            dep.latest_version = fileReleaseTags[dep_path];
+
+            if(GitHelpers.versionCompare(dep.latest_version, el.latest_version)){
+              el.latest_version = dep.latest_version;
+            }
+          }
+
+          el.dependencies.push(dep);
+        }
+      });
+
       return el;
     };
 
@@ -301,7 +326,10 @@ module.exports = function (grunt) {
             if(filepath.indexOf('.hbs') > -1){
               // Print a success message.
               grunt.log.writeln('Found "' + filepath + '".');
-              elements.push(processElement(filepath));
+
+              var el = processElement(filepath);
+
+              elements.push(el);
 
               return true;
             }

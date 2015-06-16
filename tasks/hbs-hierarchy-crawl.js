@@ -35,6 +35,7 @@ module.exports = function (grunt) {
         "/layouts/" : "layout",
         "/pages/" : "page"
       },
+      same_name_dependencies: ['.hbs', '.scss', '.js'],
       git_path: path.resolve("."),
       git_develop_branch: "develop",
       git_cascade_component_version: true
@@ -159,7 +160,7 @@ module.exports = function (grunt) {
                           var file_path = patch.newFile().path();
 
                           grunt.log.writeln("[Develop Branch]: " + file_path);
-                          fileReleaseTags[file_path] = last_tag_name + "+dev";
+                          fileReleaseTags[file_path] = last_tag_name + "dev";
                         });
 
                         cb(null, diff);
@@ -199,7 +200,7 @@ module.exports = function (grunt) {
 
       el.latest_version = "0";
 
-      if ( options.git_cascade_component_version && _.has(fileReleaseTags, filepath)){
+      if (_.has(fileReleaseTags, filepath)){
         el.latest_version = fileReleaseTags[filepath];
       }
 
@@ -233,7 +234,7 @@ module.exports = function (grunt) {
 
 
         if(reference){
-          if(GitHelpers.versionCompare(el.latest_version, reference.latest_version)){
+          if(GitHelpers.versionCompare(el.latest_version, reference.latest_version) > 0){
             reference.latest_version = el.latest_version;
           }
           reference.referenced_by.push(el.key);
@@ -269,7 +270,7 @@ module.exports = function (grunt) {
         if(extension){
           extension.extended_by.push(el.key);
 
-          if(options.git_cascade_component_version && GitHelpers.versionCompare(extension.latest_version, el.latest_version)){
+          if(options.git_cascade_component_version && GitHelpers.versionCompare(extension.latest_version, el.latest_version) > 0){
             el.latest_version = extension.latest_version;
           }
         }
@@ -283,6 +284,30 @@ module.exports = function (grunt) {
           elements.push(e);
         }
 
+      });
+
+      //Dependencies
+      //Try to process dependencies
+      el.dependencies = [];
+      _.each(options.same_name_dependencies, function(file_extension){
+        var dep_path = filepath.replace('.hbs', file_extension);
+
+        if(grunt.file.exists(dep_path)){
+          var dep = {};
+          dep.path = dep_path;
+          dep.latest_version = 0;
+
+          if (_.has(fileReleaseTags, dep_path)){
+            dep.latest_version = fileReleaseTags[dep_path];
+
+            if(GitHelpers.versionCompare(dep.latest_version, el.latest_version) > 0){
+              el.latest_version = dep.latest_version;
+              console.log(el.latest_version);
+            }
+          }
+
+          el.dependencies.push(dep);
+        }
       });
 
       return el;
@@ -301,7 +326,10 @@ module.exports = function (grunt) {
             if(filepath.indexOf('.hbs') > -1){
               // Print a success message.
               grunt.log.writeln('Found "' + filepath + '".');
-              elements.push(processElement(filepath));
+
+              var el = processElement(filepath);
+
+              elements.push(el);
 
               return true;
             }

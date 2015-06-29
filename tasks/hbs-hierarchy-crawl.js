@@ -193,12 +193,14 @@ module.exports = function (grunt) {
       if(!el){
         el = {};
         el.key = key;
+        el.references = [];
         el.referenced_by = [];
+        el.extends = [];
+        el.extended_by = [];
+        el.latest_version = "0";
       }
 
       el.hbs_path = filepath;
-
-      el.latest_version = "0";
 
       if (_.has(fileReleaseTags, filepath)){
         el.latest_version = fileReleaseTags[filepath];
@@ -215,10 +217,7 @@ module.exports = function (grunt) {
 
       //Detect and Process References
       //Example: {{> header-global}}
-      el.references = [];
-      el.referenced_by = [];
-      el.extends = [];
-      el.extended_by = [];
+
 
       var referenceRegExp = new RegExp(/\{\{>\s+([\w\-]*)\}\}/g);
 
@@ -246,6 +245,9 @@ module.exports = function (grunt) {
           e.key = ref;
           e.referenced_by = [el.key];
           e.extended_by = [];
+          e.references = [];
+          e.extends = [];
+          e.latest_version = "0";
 
           elements.push(e);
         }
@@ -253,8 +255,6 @@ module.exports = function (grunt) {
 
       //Detect and Process Extensions
       //Example: {{#extend "global"}}
-      el.extends = [];
-      el.extended_by = [];
 
       var extendRegExp = new RegExp(/\{\{#extend\s+\"([\w\-]*)\"\}\}/g);
 
@@ -281,6 +281,9 @@ module.exports = function (grunt) {
           e.key = ref;
           e.extended_by = [el.key];
           e.referenced_by = [];
+          e.references = [];
+          e.extends = [];
+          e.latest_version = "0";
           elements.push(e);
         }
 
@@ -295,7 +298,11 @@ module.exports = function (grunt) {
         if(grunt.file.exists(dep_path)){
           var dep = {};
           dep.path = dep_path;
-          dep.latest_version = 0;
+          dep.extended_by = [];
+          dep.referenced_by = [];
+          dep.references = [];
+          dep.extends = [];
+          dep.latest_version = "0";
 
           if (_.has(fileReleaseTags, dep_path)){
             dep.latest_version = fileReleaseTags[dep_path];

@@ -368,7 +368,7 @@ module.exports = function (grunt) {
       processFiles,
     ], function(err, result){
       console.log("DONE");
-      task.done();
+      return done();
     });
 
   });
